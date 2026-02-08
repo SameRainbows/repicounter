@@ -86,12 +86,6 @@ export default function Home() {
   }, [selectedId, entries]);
 
   useEffect(() => {
-    if (activePage === "workout" && !isRunning) {
-      startCamera();
-    }
-  }, [activePage, isRunning]);
-
-  useEffect(() => {
     if (!isRunning) {
       return;
     }
@@ -124,7 +118,12 @@ export default function Home() {
         return;
       }
       video.srcObject = stream;
-      await video.play();
+      try {
+        await video.play();
+      } catch (error) {
+        setStatus("Click Start Camera to begin playback");
+        throw error;
+      }
       await loadPoseLandmarker();
       landmarkerReadyRef.current = true;
       setStatus("Camera ready");
@@ -135,7 +134,23 @@ export default function Home() {
       }
       startLoop();
     } catch (err) {
-      setStatus("Camera access denied");
+      const error = err as Error & { name?: string };
+      switch (error?.name) {
+        case "NotAllowedError":
+        case "SecurityError":
+          setStatus("Camera access denied");
+          break;
+        case "NotFoundError":
+        case "OverconstrainedError":
+          setStatus("No camera found");
+          break;
+        case "NotReadableError":
+          setStatus("Camera is in use by another app");
+          break;
+        default:
+          setStatus("Camera start failed");
+          break;
+      }
     }
   };
 
