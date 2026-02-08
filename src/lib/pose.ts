@@ -31,7 +31,7 @@ export function toPoseFrame(
   landmarks: NormalizedLandmark[] | undefined,
   timestampMs: number,
   imageSize: [number, number],
-  visibilityThreshold = 0.5
+  visibilityThreshold = 0.3
 ): PoseFrame {
   const [width, height] = imageSize;
   const rawLandmarks: Record<string, Landmark2D | null> = {};

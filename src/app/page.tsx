@@ -43,6 +43,7 @@ export default function Home() {
   });
   const [viewHint, setViewHint] = useState(entries[0]?.viewHint ?? "");
   const [status, setStatus] = useState("Idle");
+  const [poseStatus, setPoseStatus] = useState("No pose yet");
   const [isRunning, setIsRunning] = useState(false);
   const [sessionStart, setSessionStart] = useState<number | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -85,6 +86,12 @@ export default function Home() {
   }, [selectedId, entries]);
 
   useEffect(() => {
+    if (activePage === "workout" && !isRunning) {
+      startCamera();
+    }
+  }, [activePage, isRunning]);
+
+  useEffect(() => {
     if (!isRunning) {
       return;
     }
@@ -104,6 +111,9 @@ export default function Home() {
 
   const startCamera = async () => {
     if (landmarkerReadyRef.current) {
+      setIsRunning(true);
+      setStatus("Camera ready");
+      startLoop();
       return;
     }
     try {
@@ -174,10 +184,22 @@ export default function Home() {
       ctx.clearRect(0, 0, width, height);
       analysisCtx.drawImage(video, 0, 0, width, height);
 
-      const landmarker = await loadPoseLandmarker();
-      const result = landmarker.detectForVideo(video, performance.now());
-      const landmarks = result.landmarks?.[0];
-      const pose = toPoseFrame(landmarks, performance.now(), [width, height]);
+      let pose = toPoseFrame(undefined, performance.now(), [width, height]);
+      try {
+        const landmarker = await loadPoseLandmarker();
+        const result = landmarker.detectForVideo(video, performance.now());
+        const landmarks = result.landmarks?.[0];
+        pose = toPoseFrame(landmarks, performance.now(), [width, height]);
+      } catch (error) {
+        setStatus("Pose model error");
+      }
+
+      const hasAnyLandmark = Object.values(pose.rawLandmarks).some(Boolean);
+      if (pose.valid && hasAnyLandmark) {
+        setPoseStatus("Pose detected");
+      } else {
+        setPoseStatus("No pose detected");
+      }
 
       const entry = entries.find((item) => item.id === selectedId);
       let barY: number | null = null;
@@ -293,6 +315,9 @@ export default function Home() {
         <div className="panel">
           <div className="muted">Status</div>
           <div>{status}</div>
+          <div className="muted" style={{ marginTop: 6 }}>
+            {poseStatus}
+          </div>
           <div className="badge">{isRunning ? "Live" : "Idle"}</div>
         </div>
       </nav>
