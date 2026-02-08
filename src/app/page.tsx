@@ -103,6 +103,28 @@ export default function Home() {
     setMotivation(MOTIVATION_LINES[idx]);
   }, [elapsedSec, isRunning]);
 
+  const waitForVideoReady = (video: HTMLVideoElement, timeoutMs = 2000) =>
+    new Promise<boolean>((resolve) => {
+      if (video.readyState >= 2) {
+        resolve(true);
+        return;
+      }
+      const onReady = () => {
+        cleanup();
+        resolve(true);
+      };
+      const onTimeout = () => {
+        cleanup();
+        resolve(false);
+      };
+      const cleanup = () => {
+        video.removeEventListener("loadedmetadata", onReady);
+        window.clearTimeout(timer);
+      };
+      video.addEventListener("loadedmetadata", onReady, { once: true });
+      const timer = window.setTimeout(onTimeout, timeoutMs);
+    });
+
   const startCamera = async () => {
     if (landmarkerReadyRef.current) {
       setIsRunning(true);
@@ -118,11 +140,12 @@ export default function Home() {
         return;
       }
       video.srcObject = stream;
+      setStatus("Camera stream ready");
+      await waitForVideoReady(video);
       try {
         await video.play();
       } catch (error) {
         setStatus("Click Start Camera to begin playback");
-        throw error;
       }
       await loadPoseLandmarker();
       landmarkerReadyRef.current = true;
@@ -179,6 +202,7 @@ export default function Home() {
         return;
       }
       if (video.readyState < 2) {
+        setStatus("Waiting for video stream...");
         frameRef.current = requestAnimationFrame(loop);
         return;
       }
