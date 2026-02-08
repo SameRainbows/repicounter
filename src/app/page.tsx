@@ -134,7 +134,14 @@ export default function Home() {
     }
     try {
       setStatus("Requesting camera...");
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+      const preferred = { width: 1280, height: 720, frameRate: { ideal: 30 } };
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: preferred });
+      } catch (firstError) {
+        setStatus("Retrying camera with default constraints...");
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
       const video = videoRef.current;
       if (!video) {
         return;
@@ -157,7 +164,7 @@ export default function Home() {
       }
       startLoop();
     } catch (err) {
-      const error = err as Error & { name?: string };
+      const error = err as Error & { name?: string; message?: string };
       switch (error?.name) {
         case "NotAllowedError":
         case "SecurityError":
@@ -171,7 +178,7 @@ export default function Home() {
           setStatus("Camera is in use by another app");
           break;
         default:
-          setStatus("Camera start failed");
+          setStatus(`Camera start failed (${error?.name ?? "UnknownError"})`);
           break;
       }
     }
