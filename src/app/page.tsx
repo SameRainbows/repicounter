@@ -148,6 +148,10 @@ export default function Home() {
       return;
     }
     try {
+      if (!window.isSecureContext) {
+        setStatus("Camera requires HTTPS");
+        return;
+      }
       setStatus("Requesting camera...");
       await refreshCameras();
       if (!navigator.mediaDevices) {
@@ -155,15 +159,28 @@ export default function Home() {
         return;
       }
       const preferred = { width: 1280, height: 720, frameRate: { ideal: 30 } };
+      const constraints: MediaStreamConstraints[] = [
+        { video: selectedDeviceId ? { ...preferred, deviceId: { exact: selectedDeviceId } } : preferred },
+        { video: preferred },
+        { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } },
+        { video: true }
+      ];
       let stream: MediaStream | null = null;
-      try {
-        const constraint = selectedDeviceId
-          ? { ...preferred, deviceId: { exact: selectedDeviceId } }
-          : preferred;
-        stream = await navigator.mediaDevices.getUserMedia({ video: constraint });
-      } catch (firstError) {
-        setStatus("Retrying camera with default constraints...");
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      let lastError: Error & { name?: string; message?: string } | null = null;
+      for (const constraint of constraints) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraint);
+          break;
+        } catch (error) {
+          lastError = error as Error & { name?: string; message?: string };
+          setStatus("Retrying camera with safer constraints...");
+        }
+      }
+      if (!stream) {
+        const name = lastError?.name ?? "UnknownError";
+        const message = lastError?.message ?? "no details";
+        setStatus(`Camera start failed (${name}: ${message})`);
+        return;
       }
       const video = videoRef.current;
       if (!video) {
@@ -177,6 +194,7 @@ export default function Home() {
       } catch (error) {
         setStatus("Click Start Camera to begin playback");
       }
+      await refreshCameras();
       await loadPoseLandmarker();
       landmarkerReadyRef.current = true;
       setStatus("Camera ready");
